@@ -11,7 +11,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as outputs from 'aws-cdk-lib/core';
 
-class AIEvaluationApplicationStack extends cdk.Stack {
+export class AIEvalEngineStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -140,7 +140,4 @@ class AIEvaluationApplicationStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
   }
-}
-
-const app = new cdk.App();
-new AIEvaluationApplicationStack(app, 'AIEvaluationApplicationStack');
+};

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { AiEvalStack } from '../lib/ai-eval-stack';
+import { AIEvalEngineStack } from '../lib/ai-eval-stack';
 
 const app = new cdk.App();
-new AiEvalStack(app, 'AiEvalStack', {
+new AIEvalEngineStack(app, 'AIEvaluationApplicationStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
