@@ -7,13 +7,19 @@ import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as outputs from 'aws-cdk-lib/core';
 
 export class AIEvalEngineStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // Roles
+    const sqsIntegrationRole = new iam.Role(this, 'SQSIntegrationRole', {
+      assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+    });
+
 
     // Create the WAF
     const webAcl = new wafv2.CfnWebACL(this, 'WebAcl', {
@@ -74,7 +80,13 @@ export class AIEvalEngineStack extends cdk.Stack {
     // API Routes
 
     const evaluateResource = api.root.addResource('evaluate');
-    const evaluateMethod = evaluateResource.addMethod('POST', new apigateway.AwsIntegration({ service: 'sqs', path: 'evaluate' }), {
+    const evaluateMethod = evaluateResource.addMethod('POST', new apigateway.AwsIntegration({
+      service: 'sqs',
+      path: 'evaluate',
+      options: {
+        credentialsRole: sqsIntegrationRole
+      }
+    }), {
       methodResponses: [{ statusCode: '200' }],
     });
 
@@ -98,12 +110,12 @@ export class AIEvalEngineStack extends cdk.Stack {
 
     const snsTask = new tasks.SnsPublish(this, 'SnsPublishTask', {
       topic: evaluationTopic,
-      message: stepfunctions.TaskInput.fromJsonPathAt('$.'),
+      message: stepfunctions.TaskInput.fromJsonPathAt('$'),
       resultPath: '$.Payload'
     })
 
     const stateMachine = new stepfunctions.StateMachine(this, 'EvaluationStateMachine', {
-      definition: publishMessageTask.next(snsTask),
+      definition: stepfunctions.Chain.start(publishMessageTask).next(snsTask),
     });
 
     new outputs.CfnOutput(this, 'StateMachineArn', {
@@ -115,6 +127,14 @@ export class AIEvalEngineStack extends cdk.Stack {
     const evaluationQueue = new sqs.Queue(this, 'EvaluationQueue', {
       queueName: 'evaluation-queue',
     });
+
+    sqsIntegrationRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['sqs:SendMessage'],
+        resources: [`${evaluationQueue.queueArn}`],
+      })
+    );
 
     // Invoke Lambda
     const invokeStateMachineLambda = new lambda.Function(this, 'InvokeStateMachineLambda', {
@@ -132,12 +152,6 @@ export class AIEvalEngineStack extends cdk.Stack {
     const evaluationTable = new dynamodb.Table(this, 'EvaluationTable', {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-    });
-
-    // S3 Bucket
-    const artifactBucket = new s3.Bucket(this, 'ArtifactBucket', {
-      bucketName: 'artifact-bucket',
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
   }
 };

@@ -4,7 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { AIEvalEngineStack } from '../lib/ai-eval-stack';
 
 const app = new cdk.App();
-new AIEvalEngineStack(app, 'AIEvaluationApplicationStack', {
+const aiEvalEngine = new AIEvalEngineStack(app, 'AIEvaluationApplicationStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -19,3 +19,5 @@ new AIEvalEngineStack(app, 'AIEvaluationApplicationStack', {
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
+
+cdk.Tags.of(aiEvalEngine).add('organization', 'ai2030');
