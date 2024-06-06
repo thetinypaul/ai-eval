@@ -100,7 +100,7 @@ export class AIEvalEngineStack extends cdk.Stack {
     const evaluationLambda = new lambda.Function(this, 'EvaluationLambda', {
       runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset('lambdas/evaluate'),
-      handler: 'index.handler',
+      handler: 'evaluate.lambda_handler',
     });
 
     const publishMessageTask = new tasks.LambdaInvoke(this, 'PublishMessageTask', {
@@ -140,11 +140,23 @@ export class AIEvalEngineStack extends cdk.Stack {
     const invokeStateMachineLambda = new lambda.Function(this, 'InvokeStateMachineLambda', {
       runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset('lambdas/invokeStateMachine'),
-      handler: 'index.handler',
+      handler: 'invokeStateMachine.lambda_handler',
       environment: {
         STATE_MACHINE_ARN: stateMachine.stateMachineArn
       }
     });
+
+    invokeStateMachineLambda.role?.attachInlinePolicy(
+      new iam.Policy(this, 'InvokeStateMachinePolicy', {
+        statements: [
+          new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: ['states:StartExecution'],
+            resources: [stateMachine.stateMachineArn],
+          }),
+        ],
+      })
+    );
 
     invokeStateMachineLambda.addEventSource(new SqsEventSource(evaluationQueue));
 
@@ -152,6 +164,34 @@ export class AIEvalEngineStack extends cdk.Stack {
     const evaluationTable = new dynamodb.Table(this, 'EvaluationTable', {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      tableName: 'EvaluationTable'
     });
+
+    invokeStateMachineLambda.role?.attachInlinePolicy(
+      new iam.Policy(this, 'InvokeStateMachineLambdaDynamoDBPolicy', {
+        statements: [
+          new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: ['dynamodb:GetItem', 'dynamodb:Scan', 'dynamodb:PutItem'],
+            resources: [`${evaluationTable.tableArn}`],
+          }),
+        ],
+      })
+    );
+
+    evaluationLambda.role?.attachInlinePolicy(
+      new iam.Policy(this, 'EvaluationLambdaDynamoDBPolicy', {
+        statements: [
+          new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: ['dynamodb:GetItem', 'dynamodb:Scan', 'dynamodb:PutItem'],
+            resources: [`${evaluationTable.tableArn}`],
+          }),
+        ],
+      })
+    );
+
+
   }
 };
+
